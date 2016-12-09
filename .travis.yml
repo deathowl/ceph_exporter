@@ -21,3 +21,10 @@ script:
   - go test -coverprofile=collectors.coverprofile ./collectors
   - $HOME/gopath/bin/gover
   - $HOME/gopath/bin/goveralls -coverprofile=gover.coverprofile -service travis-ci
+  - docker build -t neurodrone/ceph_exporter .
+
+after_success:
+  - if [ "$TRAVIS_BRANCH" == "add_registry" ]; then
+    docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
+    docker push neurodrone/ceph_exporter;
+    fi
