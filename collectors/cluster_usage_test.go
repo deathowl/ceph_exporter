@@ -138,7 +138,7 @@ func TestClusterUsage(t *testing.T) {
 		},
 	} {
 		func() {
-			collector := NewClusterUsageCollector(NewNoopConn(tt.input))
+			collector := NewClusterUsageCollector(NewNoopConn(tt.input), "byte")
 			if err := prometheus.Register(collector); err != nil {
 				t.Fatalf("collector failed to register: %s", err)
 			}
@@ -157,10 +157,9 @@ func TestClusterUsage(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed reading server response: %s", err)
 			}
-
 			for _, re := range tt.reMatch {
 				if !re.Match(buf) {
-					t.Errorf("failed matching: %q", re)
+					t.Errorf("failed matching: %q, mismatching result :%s", re, string(buf))
 				}
 			}
 			for _, re := range tt.reUnmatch {

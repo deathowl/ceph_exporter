@@ -17,7 +17,7 @@ package collectors
 import (
 	"encoding/json"
 	"log"
-
+	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -45,27 +45,40 @@ type ClusterUsageCollector struct {
 
 	// Objects show the total no. of RADOS objects that are currently allocated.
 	Objects prometheus.Gauge
+
+	//Divide capacity data by
+	Divisor float64
 }
 
 // NewClusterUsageCollector creates and returns the reference to ClusterUsageCollector
 // and internally defines each metric that display cluster stats.
-func NewClusterUsageCollector(conn Conn) *ClusterUsageCollector {
+func NewClusterUsageCollector(conn Conn, usageUnit string) *ClusterUsageCollector {
+
+	_divisor := 1
+	switch usageUnit {
+		case"kilobyte":
+			_divisor = 1000
+		case "megabyte":
+			_divisor = 1000000
+		case "gigabyte":
+			_divisor = 1000000000
+	}
+
 	return &ClusterUsageCollector{
 		conn: conn,
-
 		GlobalCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: cephNamespace,
-			Name:      "cluster_capacity_bytes",
+			Name:      fmt.Sprintf("cluster_capacity_%ss", usageUnit),
 			Help:      "Total capacity of the cluster",
 		}),
 		UsedCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: cephNamespace,
-			Name:      "cluster_used_bytes",
+			Name:      fmt.Sprintf("cluster_used_%ss", usageUnit),
 			Help:      "Capacity of the cluster currently in use",
 		}),
 		AvailableCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: cephNamespace,
-			Name:      "cluster_available_bytes",
+			Name:      fmt.Sprintf("cluster_available_%ss", usageUnit),
 			Help:      "Available space within the cluster",
 		}),
 		Objects: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -73,6 +86,8 @@ func NewClusterUsageCollector(conn Conn) *ClusterUsageCollector {
 			Name:      "cluster_objects",
 			Help:      "No. of rados objects within the cluster",
 		}),
+		Divisor: float64(_divisor),
+
 	}
 }
 
@@ -127,10 +142,9 @@ func (c *ClusterUsageCollector) collect() error {
 	if err != nil {
 		log.Println("[ERROR] cannot extract total objects:", err)
 	}
-
-	c.GlobalCapacity.Set(totBytes)
-	c.UsedCapacity.Set(usedBytes)
-	c.AvailableCapacity.Set(availBytes)
+	c.GlobalCapacity.Set(totBytes / c.Divisor)
+	c.UsedCapacity.Set(usedBytes / c.Divisor)
+	c.AvailableCapacity.Set(availBytes / c.Divisor)
 	c.Objects.Set(totObjects)
 
 	return nil

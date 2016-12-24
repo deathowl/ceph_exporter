@@ -43,10 +43,10 @@ var _ prometheus.Collector = &CephExporter{}
 // NewCephExporter creates an instance to CephExporter and returns a reference
 // to it. We can choose to enable a collector to extract stats out of by adding
 // it to the list of collectors.
-func NewCephExporter(conn *rados.Conn) *CephExporter {
+func NewCephExporter(conn *rados.Conn, usageUnit *string) *CephExporter {
 	return &CephExporter{
 		collectors: []prometheus.Collector{
-			collectors.NewClusterUsageCollector(conn),
+			collectors.NewClusterUsageCollector(conn, *usageUnit),
 			collectors.NewPoolUsageCollector(conn),
 			collectors.NewClusterHealthCollector(conn),
 			collectors.NewMonitorCollector(conn),
@@ -75,15 +75,30 @@ func (c *CephExporter) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
+func isValidUnit(unit string) bool {
+	switch unit {
+	case
+		"byte",
+		"kilobyte",
+		"megabyte",
+		"gigabyte":
+		return true
+	}
+	return false
+}
+
 func main() {
 	var (
 		addr        = flag.String("telemetry.addr", ":9128", "host:port for ceph exporter")
 		metricsPath = flag.String("telemetry.path", "/metrics", "URL path for surfacing collected metrics")
-
+		usageUnit = flag.String("usage.unit", "byte", "Measurement unit for cluster usage")
 		cephConfig = flag.String("ceph.config", "", "path to ceph config file")
 	)
 	flag.Parse()
 
+	if isValidUnit(*usageUnit) == false {
+		log.Fatalf("%s is not a valid measurement unit, valid units are : byte, kilobyte, megabte, gigabyte", *usageUnit)
+	}
 	conn, err := rados.NewConn()
 	if err != nil {
 		log.Fatalf("cannot create new ceph connection: %s", err)
@@ -103,7 +118,7 @@ func main() {
 	}
 	defer conn.Shutdown()
 
-	prometheus.MustRegister(NewCephExporter(conn))
+	prometheus.MustRegister(NewCephExporter(conn, usageUnit))
 
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
